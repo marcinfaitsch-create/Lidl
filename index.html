@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Schichtlohn</title>
+<meta name="theme-color" content="#1f5f8b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Schichtlohn">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<style>
+/* Layout: one narrow column like a time card — month bar, payout card, shift log, add form, settings. */
+:root{
+  --bg:#eef1f4; --surface:#ffffff; --ink:#15202b; --muted:#5d6b78; --line:#d5dce3;
+  --accent:#1f5f8b; --accent-ink:#ffffff; --money:#1d7a52; --late:#b8741a; --night:#4b4fa6; --warn:#b3261e;
+  --display:ui-rounded,"SF Pro Rounded",system-ui,-apple-system,sans-serif;
+  --body:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f151b; --surface:#18212a; --ink:#e6edf3; --muted:#93a1ae; --line:#2b3743;
+  --accent:#6fb1e0; --accent-ink:#0b1620; --money:#5cc893; --late:#e8a64b; --night:#9da1f2; --warn:#ff8a80; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f151b; --surface:#18212a; --ink:#e6edf3; --muted:#93a1ae; --line:#2b3743;
+  --accent:#6fb1e0; --accent-ink:#0b1620; --money:#5cc893; --late:#e8a64b; --night:#9da1f2; --warn:#ff8a80; color-scheme:dark}
+html,body{background:var(--bg)}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}body{margin:0;color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-top:calc(18px + env(safe-area-inset-top,0px));padding-bottom:calc(48px + env(safe-area-inset-bottom,0px))}
+.wrap{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+h1{font-family:var(--display);font-weight:800;font-size:1.6rem;margin:0;letter-spacing:-.01em}
+h2{font-family:var(--display);font-weight:600;font-size:1.05rem;margin:0}
+.label{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.month{display:flex;align-items:center;gap:6px}
+.month span{min-width:9.5ch;text-align:center;font-weight:600}
+button{font:inherit;cursor:pointer;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:8px 12px}
+button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.icon{width:38px;height:38px;padding:0;font-size:1.1rem}
+.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+.ghost{background:transparent}
+.danger{color:var(--warn);border-color:var(--warn);background:transparent}
+.pay{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:14px}
+.netto{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.netto .big{font-family:var(--display);font-weight:800;font-size:2.4rem;color:var(--money);line-height:1}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.stats div{display:flex;flex-direction:column;gap:2px}
+.stats b{font-family:var(--mono);font-weight:500;font-size:1.05rem}
+.bar{height:8px;border-radius:4px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--money)}
+.bar.over i{background:var(--warn)}
+.limit{display:flex;justify-content:space-between;font-size:.82rem;color:var(--muted);gap:8px}
+details{border-top:1px solid var(--line);padding-top:10px}
+summary{cursor:pointer;font-weight:600;font-size:.9rem;color:var(--accent)}
+table.calc{width:100%;border-collapse:collapse;margin-top:10px;font-size:.9rem}
+table.calc td{padding:5px 0;border-bottom:1px dashed var(--line)}
+table.calc td:last-child{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+table.calc tr.sum td{font-weight:600;border-bottom:1px solid var(--ink)}
+table.calc tr.hint td{color:var(--muted);font-size:.82rem}
+.shifts{display:flex;flex-direction:column;gap:8px}
+.shift{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:grid;grid-template-columns:auto 1fr auto;gap:4px 14px;align-items:center;text-align:left;width:100%}
+.shift .day{font-family:var(--display);font-weight:800;font-size:1.4rem;line-height:1;text-align:center;min-width:2.2ch}
+.shift .day small{display:block;font-family:var(--body);font-weight:500;font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.shift .time{font-family:var(--mono);font-size:.95rem}
+.shift .meta{font-size:.8rem;color:var(--muted);display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.shift .h{font-family:var(--mono);font-size:1.05rem;text-align:right}
+.chip{font-size:.72rem;font-weight:600;padding:1px 7px;border-radius:999px;border:1px solid currentColor}
+.chip.late{color:var(--late)} .chip.night{color:var(--night)} .chip.ist{color:var(--muted)}
+.empty{border:1px dashed var(--line);border-radius:12px;padding:20px;color:var(--muted);text-align:center}
+form{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field label{font-size:.8rem;color:var(--muted);font-weight:500}
+input{font:inherit;font-family:var(--mono);font-size:16px;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);width:100%;box-sizing:border-box;min-width:0}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.actions .primary{flex:1}
+.note{font-size:.8rem;color:var(--muted);margin:0}
+.settings{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.status{font-size:.8rem;color:var(--muted);text-align:center}
+@media (max-width:420px){.stats{grid-template-columns:repeat(2,1fr)}}
+@media (prefers-reduced-motion:no-preference){.bar i{transition:width .4s ease}}
+textarea{font:inherit;font-family:var(--mono);font-size:13px;width:100%;min-height:110px;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Schichtlohn</h1>
+    <div class="month">
+      <button class="icon" id="prev" aria-label="Vorheriger Monat">‹</button>
+      <span id="monthLabel">—</span>
+      <button class="icon" id="next" aria-label="Nächster Monat">›</button>
+    </div>
+  </header>
+
+  <section class="pay" aria-label="Auszahlung">
+    <div class="netto">
+      <div><div class="label">Netto (Schätzung)</div><div class="big num" id="netto">–</div></div>
+      <div style="text-align:right"><div class="label">Gesamtbrutto</div><div class="num" id="brutto">–</div></div>
+    </div>
+    <div class="stats">
+      <div><span class="label">Ist</span><b id="sIst">–</b></div>
+      <div><span class="label">Überstd.</span><b id="sOt">–</b></div>
+      <div><span class="label">Spät</span><b id="sLate">–</b></div>
+      <div><span class="label">Nacht</span><b id="sNight">–</b></div>
+    </div>
+    <div>
+      <div class="bar" id="bar"><i id="barFill" style="width:0"></i></div>
+      <div class="limit"><span id="limitText">Minijob-Grenze</span><span class="num" id="limitLeft"></span></div>
+    </div>
+    <details>
+      <summary>Abrechnung im Detail</summary>
+      <table class="calc"><tbody id="calc"></tbody></table>
+    </details>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;justify-content:space-between;align-items:center"><h2>Schichten</h2><button class="primary" id="addBtn">+ Schicht</button></div>
+    <div class="shifts" id="list"><div class="empty">Lade deine Schichten …</div></div>
+  </section>
+
+  <form id="form" hidden>
+    <h2 id="formTitle">Neue Schicht</h2>
+    <div class="row">
+      <div class="field"><label for="fDate">Datum</label><input type="date" id="fDate" required></div>
+      <div class="field"><label for="fPause">Pause (Min.)</label><input type="number" id="fPause" min="0" step="1" inputmode="numeric" value="0"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label for="fStart">Beginn</label><input type="time" id="fStart" required></div>
+      <div class="field"><label for="fEnd">Ende</label><input type="time" id="fEnd" required></div>
+    </div>
+    <div class="field"><label for="fIst">Ist laut Lidl-Zeitnachweis (optional)</label><input type="number" id="fIst" step="0.01" min="0" inputmode="decimal" placeholder="leer = selbst berechnen"></div>
+    <p class="note">Lidl rechnet sekundengenau. Trägst du hier die Ist-Stunden vom Zeitnachweis ein, wird genau damit gerechnet.</p>
+    <div class="actions">
+      <button type="submit" class="primary" id="saveBtn">Speichern</button>
+      <button type="button" class="ghost" id="cancelBtn">Abbrechen</button>
+      <button type="button" class="danger" id="delBtn" hidden>Löschen</button>
+    </div>
+  </form>
+
+  <details id="settingsBox" style="border:1px solid var(--line);border-radius:16px;padding:14px;background:var(--surface)">
+    <summary>Einstellungen</summary>
+    <div class="settings" id="settings"></div>
+    <p class="note" style="margin-top:10px">Zeiten als Dezimalzahl: 18,5 = 18:30 Uhr. Soll-Stunden im Monat = Soll pro Tag × Arbeitstage (Mo–Sa).</p>
+  </details>
+
+  <details style="border:1px solid var(--line);border-radius:16px;padding:14px;background:var(--surface)">
+    <summary>Daten sichern / wiederherstellen</summary>
+    <p class="note" style="margin-top:10px">Deine Schichten liegen nur auf diesem iPhone. Kopiere ab und zu den Sicherungstext und speichere ihn z.&nbsp;B. in der Notizen-App.</p>
+    <div class="actions" style="margin-top:8px"><button type="button" id="exportBtn">Sicherung kopieren</button><button type="button" id="importBtn">Sicherung einfügen</button></div>
+    <textarea id="backupText" hidden aria-label="Sicherungstext" placeholder="Sicherungstext hier einfügen …"></textarea>
+    <div class="actions" id="importActions" hidden style="margin-top:8px"><button type="button" class="primary" id="importDo">Wiederherstellen</button></div>
+  </details>
+
+  <p class="status" id="status"></p>
+</div>
+
+<script>
+
+const DEFAULTS={rate:18.08,vst:10,sollTag:0.38,sp:20,spA:18.5,spB:20,na:50,naA:20,naB:6,stf:25,pst:2,rv:3.6,limit:603};
+const SET_FIELDS=[["rate","Stundenlohn (€)"],["vst","Vertragsstunden/Monat"],["sollTag","Soll pro Arbeitstag (Std.)"],["limit","Minijob-Grenze (€)"],["sp","Spätzuschlag (%)"],["na","Nachtzuschlag (%)"],["spA","Spät ab (Uhr)"],["spB","Spät bis (Uhr)"],["naA","Nacht ab (Uhr)"],["naB","Nacht bis morgens (Uhr)"],["stf","Nacht steuerfrei (%)"],["pst","Pauschalsteuer AN (%)"],["rv","RV-Eigenanteil (%)"]];
+const MONTHS=["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+const WD=["So","Mo","Di","Mi","Do","Fr","Sa"];
+const eur=new Intl.NumberFormat("de-DE",{style:"currency",currency:"EUR"});
+const n2=new Intl.NumberFormat("de-DE",{minimumFractionDigits:2,maximumFractionDigits:2});
+const $=id=>document.getElementById(id);
+const r2=x=>Math.round((x+Number.EPSILON*Math.sign(x||1))*100)/100;
+
+let shifts=[];            // {id,date,start,end,pause,ist}
+let settings={...DEFAULTS};
+let view=null;            // {y,m}
+let editing=null;
+let backend=null;         // {saveShift,deleteShift,saveSettings}
+
+function hrs(t){const [h,m]=String(t).split(":").map(Number);return h+(m||0)/60}
+function calcShift(s,S){
+  const b=hrs(s.start);let e=hrs(s.end);if(e<b)e+=24;
+  const hasIst=s.ist!==null&&s.ist!==""&&s.ist!==undefined&&!isNaN(+s.ist);
+  const work=hasIst?+s.ist:r2(e-b-(+s.pause||0)/60);
+  const late=r2(Math.max(0,Math.min(e,S.spB)-Math.max(b,S.spA)));
+  const night=r2(Math.max(0,Math.min(e,24+S.naB)-Math.max(b,S.naA))+Math.max(0,Math.min(e,S.naB)-b));
+  const lateZ=r2(late*r2(S.rate*S.sp/100));
+  const nightZ=r2(night*r2(S.rate*S.na/100));
+  return {work,late,night,lateZ,nightZ,hasIst};
+}
+function workdays(y,m){let c=0;const d=new Date(y,m+1,0).getDate();for(let i=1;i<=d;i++)if(new Date(y,m,i).getDay()!==0)c++;return c}
+function calcMonth(list,y,m,S){
+  let ist=0,late=0,night=0,lateZ=0,nightZ=0;
+  for(const s of list){const c=calcShift(s,S);ist+=c.work;late+=c.late;night+=c.night;lateZ+=c.lateZ;nightZ+=c.nightZ}
+  ist=r2(ist);late=r2(late);night=r2(night);lateZ=r2(lateZ);nightZ=r2(nightZ);
+  const wd=workdays(y,m),soll=r2(S.sollTag*wd),ot=Math.max(0,r2(ist-soll));
+  const base=r2(S.vst*S.rate),otPay=r2(ot*S.rate);
+  const sum=r2(base+otPay+lateZ+nightZ);
+  const stf=r2(night*S.rate*S.stf/100);
+  const sv=r2(sum-stf),pst=r2(sv*S.pst/100),gb=r2(sum-pst),rv=r2(sv*S.rv/100),net=r2(gb-rv);
+  return {ist,late,night,lateZ,nightZ,wd,soll,ot,base,otPay,sum,stf,sv,pst,gb,rv,net};
+}
+const pad=n=>String(n).padStart(2,"0");
+const monthKey=(y,m)=>`${y}-${pad(m+1)}`;
+
+function render(){
+  if(!view)return;
+  const {y,m}=view;
+  $("monthLabel").textContent=`${MONTHS[m]} ${y}`;
+  const list=shifts.filter(s=>s.date&&s.date.startsWith(monthKey(y,m))).sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start));
+  const S=settings,R=calcMonth(list,y,m,S);
+  $("netto").textContent=eur.format(R.net);
+  $("brutto").textContent=eur.format(R.gb);
+  $("sIst").textContent=n2.format(R.ist);
+  $("sOt").textContent=n2.format(R.ot);
+  $("sLate").textContent=n2.format(R.late);
+  $("sNight").textContent=n2.format(R.night);
+  const pct=Math.min(100,S.limit>0?R.sv/S.limit*100:0);
+  $("barFill").style.width=pct+"%";
+  const over=R.sv>S.limit;
+  $("bar").classList.toggle("over",over);
+  $("limitText").textContent=over?"Minijob-Grenze überschritten":`Minijob-Grenze ${eur.format(S.limit)}`;
+  $("limitText").style.color=over?"var(--warn)":"";
+  $("limitLeft").textContent=over?`+${eur.format(R.sv-S.limit)}`:`noch ${eur.format(S.limit-R.sv)} frei`;
+  const rows=[
+    ["Ist-Stunden",n2.format(R.ist)+" h"],
+    [`Soll: ${n2.format(S.sollTag)} × ${R.wd} Arbeitstage`,n2.format(R.soll)+" h","hint"],
+    ["Überstunden",n2.format(R.ot)+" h"],
+    [`Grundlohn + Zulage (${n2.format(S.vst)} h)`,eur.format(R.base)],
+    ["Überstundenlohn",eur.format(R.otPay)],
+    [`Spätzuschlag ${n2.format(S.sp)} %`,eur.format(R.lateZ)],
+    [`Nachtzuschlag ${n2.format(S.na)} %`,eur.format(R.nightZ)],
+    ["Summe Bezüge",eur.format(R.sum),"sum"],
+    ["davon steuerfrei (Nacht)",eur.format(R.stf),"hint"],
+    ["Steuer-/SV-Brutto",eur.format(R.sv)],
+    ["Pauschalsteuer AN",eur.format(-R.pst)],
+    ["Gesamtbrutto",eur.format(R.gb),"sum"],
+    ["RV-Eigenanteil",eur.format(-R.rv)],
+    ["Netto",eur.format(R.net),"sum"]];
+  const tb=$("calc");tb.textContent="";
+  for(const [a,b,c] of rows){const tr=document.createElement("tr");if(c)tr.className=c;const t1=document.createElement("td"),t2=document.createElement("td");t1.textContent=a;t2.textContent=b;tr.append(t1,t2);tb.append(tr)}
+  const L=$("list");L.textContent="";
+  if(!list.length){const d=document.createElement("div");d.className="empty";d.textContent=`Noch keine Schichten im ${MONTHS[m]}. Tippe auf „+ Schicht“.`;L.append(d)}
+  for(const s of list){
+    const c=calcShift(s,S),dt=new Date(s.date+"T12:00");
+    const b=document.createElement("button");b.type="button";b.className="shift";b.setAttribute("aria-label",`Schicht am ${dt.toLocaleDateString("de-DE")} bearbeiten`);
+    b.innerHTML=`<div class="day"></div><div><div class="time"></div><div class="meta"></div></div><div class="h"></div>`;
+    const day=b.querySelector(".day");day.textContent=dt.getDate();const sm=document.createElement("small");sm.textContent=WD[dt.getDay()];day.append(sm);
+    b.querySelector(".time").textContent=`${s.start}–${s.end}`;
+    const meta=b.querySelector(".meta");
+    const p=document.createElement("span");p.textContent=+s.pause?`${s.pause} Min. Pause`:"ohne Pause";meta.append(p);
+    if(c.late){const x=document.createElement("span");x.className="chip late";x.textContent=`Spät ${n2.format(c.late)}`;meta.append(x)}
+    if(c.night){const x=document.createElement("span");x.className="chip night";x.textContent=`Nacht ${n2.format(c.night)}`;meta.append(x)}
+    if(c.hasIst){const x=document.createElement("span");x.className="chip ist";x.textContent="lt. Lidl";meta.append(x)}
+    b.querySelector(".h").textContent=n2.format(c.work)+" h";
+    b.addEventListener("click",()=>openForm(s));
+    L.append(b);
+  }
+}
+
+function renderSettings(){
+  const box=$("settings");box.textContent="";
+  for(const [k,lab] of SET_FIELDS){
+    const f=document.createElement("div");f.className="field";
+    const l=document.createElement("label");l.htmlFor="set_"+k;l.textContent=lab;
+    const i=document.createElement("input");i.type="number";i.step="any";i.inputMode="decimal";i.id="set_"+k;i.value=settings[k];
+    i.addEventListener("change",()=>{const v=parseFloat(String(i.value).replace(",","."));if(isNaN(v)){i.value=settings[k];return}settings={...settings,[k]:v};render();backend&&backend.saveSettings(settings)});
+    f.append(l,i);box.append(f);
+  }
+}
+
+function openForm(s){
+  editing=s||null;
+  $("formTitle").textContent=s?"Schicht bearbeiten":"Neue Schicht";
+  $("delBtn").hidden=!s;$("delBtn").textContent="Löschen";$("delBtn").dataset.armed="";
+  const today=new Date();
+  const defDate=(view&&(view.y!==today.getFullYear()||view.m!==today.getMonth()))?`${view.y}-${pad(view.m+1)}-01`:`${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
+  $("fDate").value=s?s.date:defDate;
+  $("fStart").value=s?s.start:"";$("fEnd").value=s?s.end:"";
+  $("fPause").value=s?(s.pause||0):0;
+  $("fIst").value=s&&s.ist!==null&&s.ist!==undefined?s.ist:"";
+  $("form").hidden=false;$("form").scrollIntoView({behavior:"smooth",block:"start"});$("fDate").focus({preventScroll:true});
+}
+function closeForm(){$("form").hidden=true;editing=null}
+
+$("addBtn").addEventListener("click",()=>openForm(null));
+$("cancelBtn").addEventListener("click",closeForm);
+$("delBtn").addEventListener("click",async()=>{
+  const b=$("delBtn");
+  if(!b.dataset.armed){b.dataset.armed="1";b.textContent="Wirklich löschen?";return}
+  const id=editing.id;shifts=shifts.filter(x=>x.id!==id);closeForm();render();
+  try{await backend.deleteShift(id);flash("Schicht gelöscht")}catch(e){flash("Löschen fehlgeschlagen – bitte nochmal versuchen")}
+});
+$("form").addEventListener("submit",async ev=>{
+  ev.preventDefault();
+  const date=$("fDate").value,start=$("fStart").value,end=$("fEnd").value;
+  if(!date||!start||!end){flash("Bitte Datum, Beginn und Ende ausfüllen");return}
+  const istRaw=String($("fIst").value).replace(",",".").trim();
+  const s={id:editing?editing.id:"s"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),date,start,end,pause:parseInt($("fPause").value,10)||0,ist:istRaw===""?null:parseFloat(istRaw)};
+  shifts=shifts.filter(x=>x.id!==s.id).concat(s);
+  const [y,m]=date.split("-").map(Number);view={y,m:m-1};
+  closeForm();render();
+  try{await backend.saveShift(s);flash("Gespeichert")}catch(e){flash("Speichern fehlgeschlagen – bitte nochmal versuchen")}
+});
+$("prev").addEventListener("click",()=>{let {y,m}=view;m--;if(m<0){m=11;y--}view={y,m};render()});
+$("next").addEventListener("click",()=>{let {y,m}=view;m++;if(m>11){m=0;y++}view={y,m};render()});
+
+let flashT;function flash(t){$("status").textContent=t;clearTimeout(flashT);flashT=setTimeout(()=>$("status").textContent="",3000)}
+
+function pickInitialMonth(){
+  const now=new Date();
+  const thisKey=monthKey(now.getFullYear(),now.getMonth());
+  if(shifts.some(s=>s.date&&s.date.startsWith(thisKey))||!shifts.length)return {y:now.getFullYear(),m:now.getMonth()};
+  const latest=shifts.map(s=>s.date).sort().pop();const [y,m]=latest.split("-").map(Number);return {y,m:m-1};
+}
+
+/* ---- storage: only on this device ---- */
+const LS_KEY="schichtlohn.v1";
+function persist(){try{localStorage.setItem(LS_KEY,JSON.stringify({shifts,settings}))}catch(e){flash("Speichern auf dem Gerät nicht möglich")}}
+try{const raw=localStorage.getItem(LS_KEY);if(raw){const d=JSON.parse(raw);shifts=d.shifts||[];settings={...DEFAULTS,...(d.settings||{})}}}catch(e){}
+backend={saveShift:async()=>persist(),deleteShift:async()=>persist(),saveSettings:async()=>persist()};
+view=pickInitialMonth();
+renderSettings();render();
+
+$("exportBtn").addEventListener("click",async()=>{
+  const txt=JSON.stringify({app:"schichtlohn",v:1,shifts,settings});
+  const ta=$("backupText");ta.hidden=false;ta.value=txt;$("importActions").hidden=true;
+  try{await navigator.clipboard.writeText(txt);flash("Sicherung kopiert – jetzt z. B. in Notizen einfügen")}
+  catch(e){ta.focus();ta.select();flash("Text markiert – bitte manuell kopieren")}
+});
+$("importBtn").addEventListener("click",()=>{const ta=$("backupText");ta.hidden=false;ta.value="";$("importActions").hidden=false;ta.focus()});
+$("importDo").addEventListener("click",()=>{
+  try{const d=JSON.parse($("backupText").value);if(!Array.isArray(d.shifts))throw 0;
+    shifts=d.shifts;settings={...DEFAULTS,...(d.settings||{})};persist();view=pickInitialMonth();renderSettings();render();
+    $("backupText").hidden=true;$("importActions").hidden=true;flash(`${shifts.length} Schichten wiederhergestellt`)}
+  catch(e){flash("Das ist kein gültiger Sicherungstext")}
+});
+if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}))}
+</script>
+</body>
+</html>
