@@ -146,7 +146,7 @@ textarea{font:inherit;font-family:var(--mono);font-size:13px;width:100%;min-heig
   <details id="settingsBox" style="border:1px solid var(--line);border-radius:16px;padding:14px;background:var(--surface)">
     <summary>Einstellungen</summary>
     <div class="settings" id="settings"></div>
-    <p class="note" style="margin-top:10px">Zeiten als Dezimalzahl: 18,5 = 18:30 Uhr. Soll-Stunden im Monat = Soll pro Tag × Arbeitstage (Mo–Sa).</p>
+    <p class="note" style="margin-top:10px">Zeiten als Dezimalzahl: 18,5 = 18:30 Uhr. Soll-Stunden im Monat = Soll pro Tag × Arbeitstage (Mo–Sa, ohne Feiertage in Baden-Württemberg).</p>
   </details>
 
   <details style="border:1px solid var(--line);border-radius:16px;padding:14px;background:var(--surface)">
@@ -188,17 +188,21 @@ function calcShift(s,S){
   const nightZ=r2(night*r2(S.rate*S.na/100));
   return {work,late,night,lateZ,nightZ,hasIst};
 }
-function workdays(y,m){let c=0;const d=new Date(y,m+1,0).getDate();for(let i=1;i<=d;i++)if(new Date(y,m,i).getDay()!==0)c++;return c}
+function easter(y){const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),mo=Math.floor((h+l-7*m+114)/31),da=((h+l-7*m+114)%31)+1;return new Date(y,mo-1,da)}
+function holidaysBW(y){const E=easter(y),add=n=>{const d=new Date(E);d.setDate(d.getDate()+n);return d};
+  const list=[new Date(y,0,1),new Date(y,0,6),add(-2),add(1),new Date(y,4,1),add(39),add(50),add(60),new Date(y,9,3),new Date(y,10,1),new Date(y,11,25),new Date(y,11,26)];
+  return new Set(list.map(d=>`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`))}
+function workdays(y,m){const H=holidaysBW(y);let c=0,hol=0;const d=new Date(y,m+1,0).getDate();for(let i=1;i<=d;i++){if(new Date(y,m,i).getDay()===0)continue;if(H.has(`${y}-${m}-${i}`)){hol++;continue}c++}workdays.lastHol=hol;return c}
 function calcMonth(list,y,m,S){
   let ist=0,late=0,night=0,lateZ=0,nightZ=0;
   for(const s of list){const c=calcShift(s,S);ist+=c.work;late+=c.late;night+=c.night;lateZ+=c.lateZ;nightZ+=c.nightZ}
   ist=r2(ist);late=r2(late);night=r2(night);lateZ=r2(lateZ);nightZ=r2(nightZ);
-  const wd=workdays(y,m),soll=r2(S.sollTag*wd),ot=Math.max(0,r2(ist-soll));
+  const wd=workdays(y,m),hol=workdays.lastHol,soll=r2(S.sollTag*wd),ot=Math.max(0,r2(ist-soll));
   const base=r2(S.vst*S.rate),otPay=r2(ot*S.rate);
   const sum=r2(base+otPay+lateZ+nightZ);
   const stf=r2(night*S.rate*S.stf/100);
   const sv=r2(sum-stf),pst=r2(sv*S.pst/100),gb=r2(sum-pst),rv=r2(sv*S.rv/100),net=r2(gb-rv);
-  return {ist,late,night,lateZ,nightZ,wd,soll,ot,base,otPay,sum,stf,sv,pst,gb,rv,net};
+  return {ist,late,night,lateZ,nightZ,wd,hol,soll,ot,base,otPay,sum,stf,sv,pst,gb,rv,net};
 }
 const pad=n=>String(n).padStart(2,"0");
 const monthKey=(y,m)=>`${y}-${pad(m+1)}`;
@@ -224,7 +228,7 @@ function render(){
   $("limitLeft").textContent=over?`+${eur.format(R.sv-S.limit)}`:`noch ${eur.format(S.limit-R.sv)} frei`;
   const rows=[
     ["Ist-Stunden",n2.format(R.ist)+" h"],
-    [`Soll: ${n2.format(S.sollTag)} × ${R.wd} Arbeitstage`,n2.format(R.soll)+" h","hint"],
+    [`Soll: ${n2.format(S.sollTag)} × ${R.wd} Arbeitstage${R.hol?` (ohne ${R.hol} Feiertag${R.hol>1?"e":""})`:""}`,n2.format(R.soll)+" h","hint"],
     ["Überstunden",n2.format(R.ot)+" h"],
     [`Grundlohn + Zulage (${n2.format(S.vst)} h)`,eur.format(R.base)],
     ["Überstundenlohn",eur.format(R.otPay)],
